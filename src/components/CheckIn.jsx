@@ -11,9 +11,9 @@ export default function CheckIn() {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
-      // Menambahkan konfigurasi kamera depan
+      rememberLastUsedCamera: false,
       videoConstraints: {
-        facingMode: "user", // "user" untuk kamera depan, "environment" untuk kamera belakang
+        facingMode: "user",
       },
     });
 
@@ -50,13 +50,33 @@ export default function CheckIn() {
 
   return (
     <div style={styles.container}>
+      {/* Injeksi CSS Global untuk merapikan elemen bawaan html5-qrcode */}
+      <style>{`
+        #reader { border: none !important; }
+        #reader__dashboard { padding: 10px !important; }
+        #reader__camera_selection { 
+          width: 100%; 
+          padding: 8px; 
+          border-radius: 8px; 
+          margin-bottom: 10px; 
+          border: 1px solid #ddd;
+        }
+        #reader img { display: none; } /* Sembunyikan icon sampah */
+        #reader video { 
+          border-radius: 12px !important; 
+          object-fit: cover !important;
+          transform: scaleX(-1); /* Efek Mirror untuk Kamera Depan */
+        }
+        button { cursor: pointer; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
+
       <div style={styles.card}>
         <div style={styles.header}>
           <h2 style={styles.title}>Presensi Digital</h2>
-          <p style={styles.subtitle}>Arahkan kamera ke QR Code</p>
+          <p style={styles.subtitle}>Gunakan kamera depan untuk scan</p>
         </div>
 
-        {/* Scanner Container */}
         <div style={styles.scannerWrapper}>
           <div id="reader" style={styles.scanner}></div>
         </div>
@@ -64,7 +84,7 @@ export default function CheckIn() {
         {loading && (
           <div style={styles.loadingOverlay}>
             <div style={styles.spinner}></div>
-            <p>Memverifikasi data...</p>
+            <p>Memproses...</p>
           </div>
         )}
 
@@ -78,18 +98,18 @@ export default function CheckIn() {
           >
             <div style={styles.resultIcon}>{result.ok ? "✅" : "❌"}</div>
             <div style={styles.resultText}>
-              <strong>
-                {result.ok ? "Presensi Berhasil" : "Presensi Gagal"}
+              <strong style={{ display: "block", fontSize: "1.1rem" }}>
+                {result.ok ? "Berhasil!" : "Gagal!"}
               </strong>
-              <p style={styles.resultDetail}>
+              <span style={styles.resultDetail}>
                 {result.ok ? `ID: ${result.data.presence_id}` : result.error}
-              </p>
+              </span>
             </div>
             <button
               onClick={() => window.location.reload()}
               style={styles.retryButton}
             >
-              Scan Ulang
+              Coba Lagi
             </button>
           </div>
         )}
@@ -102,89 +122,62 @@ const styles = {
   container: {
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "flex-start",
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
     padding: "20px",
+    paddingTop: "40px",
+    boxSizing: "border-box",
     fontFamily: "'Inter', sans-serif",
   },
   card: {
-    background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    padding: "30px",
-    borderRadius: "24px",
-    boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+    background: "#ffffff",
+    padding: "24px",
+    borderRadius: "28px",
+    boxShadow: "0 15px 35px rgba(0,0,0,0.2)",
     width: "100%",
-    maxWidth: "400px",
+    maxWidth: "380px",
     textAlign: "center",
   },
-  header: {
-    marginBottom: "20px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "1.5rem",
-    color: "#1f2937",
-    fontWeight: "700",
-  },
-  subtitle: {
-    margin: "5px 0 0",
-    fontSize: "0.9rem",
-    color: "#6b7280",
-  },
+  header: { marginBottom: "20px" },
+  title: { margin: 0, fontSize: "1.4rem", color: "#111827", fontWeight: "800" },
+  subtitle: { margin: "4px 0 0", fontSize: "0.85rem", color: "#6b7280" },
   scannerWrapper: {
     overflow: "hidden",
-    borderRadius: "16px",
-    border: "2px solid #e5e7eb",
-    backgroundColor: "#f9fafb",
+    borderRadius: "20px",
+    backgroundColor: "#000", // Background hitam saat kamera loading
+    aspectRatio: "1 / 1",
+    position: "relative",
   },
-  scanner: {
-    width: "100%",
-  },
-  loadingOverlay: {
-    marginTop: "20px",
-    color: "#4f46e5",
-    fontWeight: "600",
-  },
+  scanner: { width: "100%" },
+  loadingOverlay: { marginTop: "20px", color: "#4f46e5" },
   spinner: {
-    width: "30px",
-    height: "30px",
-    border: "3px solid #f3f3f3",
+    width: "24px",
+    height: "24px",
+    border: "3px solid #e5e7eb",
     borderTop: "3px solid #4f46e5",
     borderRadius: "50%",
-    margin: "0 auto 10px",
-    animation: "spin 1s linear infinite",
+    margin: "0 auto 8px",
+    animation: "spin 0.8s linear infinite",
   },
   resultBox: {
     marginTop: "20px",
-    padding: "15px",
-    borderRadius: "16px",
-    border: "1px solid",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "10px",
+    padding: "16px",
+    borderRadius: "18px",
+    border: "2px solid",
+    textAlign: "center",
   },
-  resultIcon: {
-    fontSize: "2rem",
-  },
-  resultText: {
-    color: "#111827",
-  },
-  resultDetail: {
-    margin: "5px 0 0",
-    fontSize: "0.85rem",
-    opacity: 0.8,
-  },
+  resultIcon: { fontSize: "2rem", marginBottom: "8px" },
+  resultText: { marginBottom: "12px" },
+  resultDetail: { fontSize: "0.85rem", opacity: 0.8 },
   retryButton: {
-    marginTop: "10px",
-    padding: "10px 20px",
+    width: "100%",
+    padding: "12px",
     borderRadius: "12px",
     border: "none",
     background: "#1f2937",
-    color: "white",
-    fontWeight: "600",
-    cursor: "pointer",
-    transition: "transform 0.2s",
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: "0.9rem",
   },
 };
