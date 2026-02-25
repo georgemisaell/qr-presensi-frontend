@@ -11,6 +11,10 @@ export default function CheckIn() {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
+      // Menambahkan konfigurasi kamera depan
+      videoConstraints: {
+        facingMode: "user", // "user" untuk kamera depan, "environment" untuk kamera belakang
+      },
     });
 
     scanner.render(
@@ -37,7 +41,7 @@ export default function CheckIn() {
     try {
       const response = await checkIn(payload);
       setResult(response);
-    } catch (err) {
+    } catch {
       setResult({ ok: false, error: "Gagal terhubung ke server" });
     } finally {
       setLoading(false);
