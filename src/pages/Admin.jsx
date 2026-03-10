@@ -45,11 +45,13 @@ function AutoFitMap({ points }) {
 }
 
 export default function Admin() {
+  const QR_ROTATION_SECONDS = 20;
   const navigate = useNavigate();
   const [course, setCourse] = useState("WEB-101");
   const [session, setSession] = useState("SESI-01");
   const [qrToken, setQrToken] = useState("");
   const [timeLeft, setTimeLeft] = useState(null);
+  const [isQrAutoRunning, setIsQrAutoRunning] = useState(false);
   const [presenceData, setPresenceData] = useState([]);
   const [presenceError, setPresenceError] = useState("");
   const [isFetchingPresence, setIsFetchingPresence] = useState(false);
@@ -72,6 +74,7 @@ export default function Admin() {
   ];
 
   const resetView = () => {
+    setIsQrAutoRunning(false);
     setQrToken("");
     setTimeLeft(null);
   };
@@ -134,7 +137,7 @@ export default function Admin() {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
-  const generateQR = async () => {
+  const generateQR = useCallback(async () => {
     setLoading(true);
     try {
       const resp = await fetch(`${BASE_URL}?path=presence/qr/generate`, {
@@ -144,37 +147,78 @@ export default function Admin() {
       const json = await resp.json();
       if (json.ok) {
         setQrToken(json.data.qr_token);
-        setTimeLeft(120); // 2 Menit
+        setTimeLeft(QR_ROTATION_SECONDS);
+        return true;
       }
+      alert(json.error || "Gagal generate QR");
     } catch (_error) {
       alert("Gagal generate QR");
+      setIsQrAutoRunning(false);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+    return false;
+  }, [QR_ROTATION_SECONDS, course, session]);
+
+  useEffect(() => {
+    if (!isQrAutoRunning || timeLeft !== 0) return;
+
+    generateQR();
+  }, [generateQR, isQrAutoRunning, timeLeft]);
+
+  const startQrRotation = async () => {
+    const created = await generateQR();
+    if (created) {
+      setIsQrAutoRunning(true);
+    }
+  };
+
+  const stopQrRotation = () => {
+    setIsQrAutoRunning(false);
+    setQrToken("");
+    setTimeLeft(null);
   };
 
   const openGpsModal = async () => {
     setIsModalOpen(true);
     try {
       const query = new URLSearchParams({
-        path: "admin/presence/list",
-        course_id: course.trim(),
-        session_id: session.trim(),
+        path: "sensor/gps/logs",
         _t: String(Date.now()),
       });
       const resp = await fetch(`${BASE_URL}?${query.toString()}`, {
         cache: "no-store",
       });
       const json = await resp.json();
-      if (json.ok) setGpsLogs(json.data);
+      if (json.ok) {
+        setGpsLogs(Array.isArray(json.data) ? json.data : []);
+      } else {
+        setGpsLogs([]);
+      }
     } catch (error) {
       console.error(error);
       setGpsLogs([]);
     }
   };
 
+  const scannedClients = useMemo(() => {
+    const latestByDevice = new Map();
+
+    gpsLogs.forEach((item) => {
+      const deviceId = item.device_id || item.user_id || item.nim || "Unknown";
+      if (!latestByDevice.has(deviceId)) {
+        latestByDevice.set(deviceId, {
+          ...item,
+          clientLabel: item.nim || item.user_id || item.device_id || "Unknown",
+        });
+      }
+    });
+
+    return Array.from(latestByDevice.values());
+  }, [gpsLogs]);
+
   const mapPoints = useMemo(() => {
-    const source = gpsLogs.length > 0 ? gpsLogs : presenceData;
-    return source
+    return scannedClients
       .filter((item) => item.lat && item.lng)
       .map((item) => ({
         ...item,
@@ -182,7 +226,7 @@ export default function Admin() {
         lng: Number(item.lng),
       }))
       .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
-  }, [gpsLogs, presenceData]);
+  }, [scannedClients]);
 
   return (
     <div className="admin-container">
@@ -256,19 +300,33 @@ export default function Admin() {
 
           {timeLeft > 0 && (
             <p className="countdown-text">
-              Sisa waktu: {Math.floor(timeLeft / 60)}:
-              {timeLeft % 60 < 10 ? "0" : ""}
-              {timeLeft % 60}
+              Token berganti otomatis dalam {timeLeft} detik.
             </p>
           )}
-          {timeLeft === 0 && <p className="expired-text">Token Expired!</p>}
+          {!isQrAutoRunning && qrToken && (
+            <p className="expired-text">
+              QR dihentikan. Tekan mulai untuk generate lagi.
+            </p>
+          )}
+          <p className="qr-status-text">
+            {isQrAutoRunning
+              ? "Mode otomatis aktif. Token baru dibuat setiap 20 detik."
+              : "Mode otomatis nonaktif. QR tidak sedang diputar."}
+          </p>
 
           <button
             className="btn btn-primary"
-            onClick={generateQR}
-            disabled={loading}
+            onClick={startQrRotation}
+            disabled={loading || isQrAutoRunning}
           >
-            {loading ? "Memproses..." : "Generate QR Baru"}
+            {loading ? "Memproses..." : "Mulai QR Otomatis"}
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={stopQrRotation}
+            disabled={!qrToken && !isQrAutoRunning}
+          >
+            Stop QR Token
           </button>
           <button className="btn btn-secondary" onClick={openGpsModal}>
             📍 Lihat Peta GPS
@@ -330,7 +388,7 @@ export default function Admin() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Peta Pantauan</h3>
+              <h3>Peta Pantauan Semua Klien</h3>
               <button
                 className="btn btn-close"
                 type="button"
@@ -339,6 +397,10 @@ export default function Admin() {
                 Tutup
               </button>
             </div>
+            <p className="modal-subtitle">
+              Menampilkan {scannedClients.length} klien terbaru yang sudah
+              mengirim scan/GPS.
+            </p>
             <div className="modal-map-wrap">
               <MapContainer
                 center={[-6.2, 106.8]}
@@ -350,7 +412,7 @@ export default function Admin() {
                 {mapPoints.map((d, i) => (
                   <Marker key={i} position={[d.lat, d.lng]}>
                     <Popup>
-                      {d.nim || d.user_id || "Unknown"}
+                      {d.clientLabel}
                       {d.waktu
                         ? ` - ${new Date(d.waktu).toLocaleString()}`
                         : ""}
@@ -359,6 +421,39 @@ export default function Admin() {
                 ))}
               </MapContainer>
             </div>
+            {scannedClients.length > 0 && (
+              <div className="modal-client-list">
+                {scannedClients.map((client, index) => (
+                  <div
+                    key={`${client.clientLabel}-${index}`}
+                    className="modal-client-item"
+                  >
+                    <div>
+                      <p className="modal-client-name">{client.clientLabel}</p>
+                      <p className="modal-client-time">
+                        {client.waktu
+                          ? new Date(client.waktu).toLocaleString()
+                          : "Waktu tidak tersedia"}
+                      </p>
+                    </div>
+                    {client.lat && client.lng ? (
+                      <a
+                        className="modal-client-link"
+                        href={`https://www.google.com/maps?q=${client.lat},${client.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Buka Maps
+                      </a>
+                    ) : (
+                      <span className="modal-client-muted">
+                        Tanpa koordinat
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {mapPoints.length === 0 && (
               <p className="modal-empty">
                 Belum ada data koordinat untuk ditampilkan.
