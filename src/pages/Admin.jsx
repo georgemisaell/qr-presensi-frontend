@@ -179,6 +179,30 @@ export default function Admin() {
     setTimeLeft(null);
   };
 
+  const deletePresence = async (nim) => {
+    if (!window.confirm(`Hapus presensi untuk NIM ${nim}?`)) return;
+    // Optimistic update
+    setPresenceData((prev) => prev.filter((row) => row.nim !== nim));
+    try {
+      const resp = await fetch(`${BASE_URL}?path=admin/presence/delete`, {
+        method: "POST",
+        body: JSON.stringify({
+          nim,
+          course_id: course.trim(),
+          session_id: session.trim(),
+        }),
+      });
+      const json = await resp.json();
+      if (!json.ok) {
+        alert(json.error || "Gagal menghapus presensi.");
+        fetchPresence(); // rollback
+      }
+    } catch (_err) {
+      alert("Gagal terhubung ke server.");
+      fetchPresence(); // rollback
+    }
+  };
+
   const openGpsModal = async () => {
     setIsModalOpen(true);
     try {
@@ -355,6 +379,7 @@ export default function Admin() {
                   <th>NIM</th>
                   <th>Waktu</th>
                   <th>Map</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -374,6 +399,15 @@ export default function Admin() {
                       ) : (
                         "-"
                       )}
+                    </td>
+                    <td>
+                      <button
+                        className="btn-row-delete"
+                        title="Hapus presensi"
+                        onClick={() => deletePresence(row.nim)}
+                      >
+                        Hapus
+                      </button>
                     </td>
                   </tr>
                 ))}

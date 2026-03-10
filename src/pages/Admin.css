@@ -322,6 +322,26 @@
   font-weight: 600;
 }
 
+.btn-row-delete {
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b91c1c;
+  background: #fff1f1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-row-delete:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
